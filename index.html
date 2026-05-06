@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N-COL — Non-Conventional Optics for Life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: oklch(96% 0.018 82);
+    --bg2: oklch(93% 0.022 80);
+    --ink: oklch(18% 0.025 60);
+    --ink-mid: oklch(45% 0.025 65);
+    --amber: oklch(62% 0.13 76);
+    --amber-light: oklch(80% 0.10 78);
+    --amber-dark: oklch(45% 0.13 72);
+    --grid: oklch(88% 0.020 82);
+    --rule: oklch(82% 0.030 78);
+    --font-display: 'EB Garamond', Georgia, serif;
+    --font-mono: 'DM Mono', 'Courier New', monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-display); overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 48px 48px; z-index: 0;
+  }
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 48px;
+    background: linear-gradient(to bottom, var(--bg) 60%, transparent);
+  }
+  .nav-logo { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; letter-spacing: 0.04em; color: var(--ink); line-height: 1.1; cursor: pointer; }
+  .nav-logo span { display: block; font-size: 0.68rem; font-family: var(--font-mono); font-weight: 300; color: var(--ink-mid); letter-spacing: 0.12em; text-transform: uppercase; }
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mid); text-decoration: none; position: relative; transition: color 0.25s; cursor: pointer; }
+  .nav-links a::after { content: ''; position: absolute; bottom: -3px; left: 0; width: 0; height: 1px; background: var(--amber); transition: width 0.3s; }
+  .nav-links a:hover, .nav-links a.active { color: var(--amber-dark); }
+  .nav-links a:hover::after, .nav-links a.active::after { width: 100%; }
+
+  /* Fixed stage: microscope + legend always visible on the right */
+  #stage {
+    position: fixed; top: 0; right: 0; width: 50vw; height: 100vh;
+    z-index: 2; pointer-events: none;
+  }
+  #microscope-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .canvas-label { position: absolute; bottom: 28px; right: 32px; font-family: var(--font-mono); font-size: 0.6rem; color: var(--amber); letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.7; z-index: 3; }
+
+  #legend {
+    position: absolute; top: 50%; right: 32px; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 18px;
+    z-index: 3;
+  }
+  .legend-item {
+    pointer-events: auto; cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 2px;
+    font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--ink-mid); opacity: 0.55; transition: opacity 0.3s, color 0.3s;
+    white-space: nowrap;
+  }
+  .legend-item:hover { opacity: 1; color: var(--amber-dark); }
+  .legend-item.active { opacity: 1; color: var(--amber-dark); }
+  .legend-num { font-size: 0.56rem; opacity: 0.7; }
+  .legend-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--amber-dark); background: transparent; transition: background 0.3s; }
+  .legend-item.active .legend-dot, .legend-item:hover .legend-dot { background: var(--amber-dark); }
+
+  /* Sections: content confined to the left half so the canvas stays visible */
+  #hero {
+    position: relative; height: 100vh;
+    display: flex; align-items: center;
+    padding: 0 calc(50vw + 16px) 0 80px;
+    overflow: hidden; z-index: 1;
+  }
+  .hero-text { z-index: 2; max-width: 560px; }
+  .hero-label { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber); margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .hero-label::before { content: ''; display: inline-block; width: 32px; height: 1px; background: var(--amber); }
+  .hero-title { font-size: clamp(2.4rem, 4vw, 3.8rem); font-weight: 500; line-height: 1.05; color: var(--ink); margin-bottom: 12px; }
+  .hero-title em { font-style: italic; color: var(--amber-dark); }
+  .hero-acronym { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.22em; color: var(--ink-mid); margin-bottom: 32px; }
+  .hero-desc { font-size: 1.05rem; line-height: 1.7; color: var(--ink-mid); max-width: 460px; font-style: italic; }
+  .hero-affiliation { margin-top: 36px; display: flex; align-items: center; gap: 14px; }
+  .hero-affiliation::before { content: ''; display: block; width: 1px; height: 40px; background: var(--rule); }
+  .hero-affiliation-text { font-family: var(--font-mono); font-size: 0.65rem; color: var(--ink-mid); letter-spacing: 0.08em; line-height: 1.6; text-transform: uppercase; }
+  .section-hint { position: absolute; bottom: 40px; left: 25%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 3; animation: bounce 2.4s ease-in-out infinite; }
+  .section-hint span { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.15em; color: var(--ink-mid); text-transform: uppercase; }
+  @keyframes bounce { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
+
+  .section { position: relative; z-index: 1; padding: 120px calc(50vw + 16px) 120px 80px; min-height: 80vh; border-top: 1px solid var(--rule); }
+  .section-number { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.22em; color: var(--amber); text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .section-number::after { content: ''; display: inline-block; width: 48px; height: 1px; background: var(--amber-light); }
+  .section-title { font-size: clamp(1.9rem, 3vw, 2.6rem); font-weight: 500; line-height: 1.15; margin-bottom: 48px; color: var(--ink); }
+  .section-title em { font-style: italic; color: var(--amber-dark); }
+
+  #pi .pi-grid { display: grid; grid-template-columns: 220px 1fr; gap: 40px; align-items: start; }
+  .pi-portrait { width: 100%; aspect-ratio: 3/4; background: var(--bg2); border: 1px solid var(--rule); position: relative; overflow: hidden; }
+  .pi-portrait::before { content: ''; position: absolute; inset: 12px; border: 1px dashed var(--amber-light); z-index: 2; pointer-events: none; }
+  .pi-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; position: relative; z-index: 1; }
+  .pi-portrait.has-image::before { display: none; }
+  .pi-portrait-label { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.12em; color: var(--amber); text-transform: uppercase; z-index: 3; }
+  .pi-info h3 { font-size: 1.7rem; font-weight: 500; margin-bottom: 4px; }
+  .pi-info .pi-title { font-family: var(--font-mono); font-size: 0.66rem; color: var(--amber-dark); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 22px; }
+  .pi-info p { font-size: 0.98rem; line-height: 1.7; color: var(--ink-mid); max-width: 560px; margin-bottom: 12px; }
+  .pi-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .pi-tag { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; padding: 5px 12px; border: 1px solid var(--rule); color: var(--ink-mid); background: var(--bg2); }
+
+  #team .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px; }
+  .team-card-photo { width: 100%; aspect-ratio: 1; background: var(--bg2); border: 1px solid var(--rule); position: relative; margin-bottom: 12px; }
+  .team-card-photo::after { content: ''; position: absolute; inset: 8px; border: 1px dashed var(--amber-light); opacity: 0.5; }
+  .team-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .team-card-photo-label { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-family: var(--font-mono); font-size: 0.5rem; letter-spacing: 0.1em; color: var(--amber); text-transform: uppercase; opacity: 0.7; }
+  .team-card h4 { font-size: 0.96rem; font-weight: 500; margin-bottom: 2px; line-height: 1.25; }
+  .team-card .team-role { font-family: var(--font-mono); font-size: 0.58rem; color: var(--amber-dark); letter-spacing: 0.1em; text-transform: uppercase; } .team-bio { font-size: 0.82rem; line-height: 1.5; color: var(--ink-mid); margin-top: 8px; }
+  .team-subhead { font-family: var(--font-display); font-size: 1.5rem; font-weight: 500; margin: 56px 0 22px; color: var(--ink); }
+  .team-subhead em { font-style: italic; color: var(--amber-dark); }
+
+  #research .research-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+  .research-card { background: var(--bg2); border: 1px solid var(--rule); padding: 28px 22px; position: relative; transition: background 0.3s; }
+  .research-card:hover { background: oklch(90% 0.030 80); }
+  .research-card-num { font-family: var(--font-mono); font-size: 1.8rem; color: var(--amber-light); font-weight: 300; line-height: 1; margin-bottom: 16px; }
+  .research-card h3 { font-size: 1.05rem; font-weight: 500; margin-bottom: 12px; line-height: 1.3; }
+  .research-card h3 em { font-style: italic; color: var(--amber-dark); }
+  .research-card p { font-size: 0.86rem; line-height: 1.7; color: var(--ink-mid); }
+  .research-card-tag { position: absolute; top: 14px; right: 14px; font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.15em; color: var(--amber); text-transform: uppercase; }
+
+  #publications .pub-list { display: flex; flex-direction: column; }
+  .pub-item { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: baseline; padding: 22px 0; border-bottom: 1px solid var(--rule); }
+  .pub-item:hover { background: var(--bg2); }
+  .pub-info h4 { font-size: 1rem; font-weight: 400; line-height: 1.4; margin-bottom: 6px; }
+  .pub-info .pub-authors { font-size: 0.82rem; color: var(--ink-mid); font-style: italic; margin-bottom: 4px; }
+  .pub-info .pub-journal { font-family: var(--font-mono); font-size: 0.6rem; color: var(--amber-dark); letter-spacing: 0.08em; text-transform: uppercase; }
+  .pub-link { font-family: var(--font-mono); font-size: 0.58rem; color: var(--amber-dark); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; white-space: nowrap; }
+  .pub-link:hover { border-color: var(--amber); }
+
+  #outreach .outreach-block { display: grid; grid-template-columns: 260px 1fr; gap: 40px; align-items: start; margin-bottom: 56px; }
+  #outreach .outreach-block:last-child { margin-bottom: 0; }
+  .outreach-media { position: relative; }
+  .outreach-media img { width: 100%; display: block; border: 1px solid var(--rule); }
+  .outreach-heading { font-family: var(--font-display); font-size: 1.9rem; font-weight: 500; color: var(--ink); line-height: 1.1; padding-top: 4px; }
+  .outreach-heading em { font-style: italic; color: var(--amber-dark); }
+  .outreach-body h3 { font-size: 1.3rem; font-weight: 500; margin-bottom: 14px; }
+  .outreach-body h3 em { font-style: italic; color: var(--amber-dark); }
+  .outreach-body p { font-size: 0.96rem; line-height: 1.75; color: var(--ink-mid); margin-bottom: 14px; max-width: 620px; }
+  .outreach-body a.outreach-link { display: inline-block; margin-top: 6px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.14em; color: var(--amber-dark); text-transform: uppercase; text-decoration: none; border-bottom: 1px solid var(--amber-light); padding-bottom: 2px; }
+  .outreach-body a.outreach-link:hover { border-color: var(--amber-dark); }
+
+  #contact { min-height: 60vh; }
+  #contact .contact-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
+  .contact-block { display: flex; flex-direction: column; gap: 26px; }
+  .contact-item { display: flex; flex-direction: column; gap: 6px; }
+  .contact-label { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.18em; color: var(--amber); text-transform: uppercase; }
+  .contact-value { font-size: 1rem; line-height: 1.65; color: var(--ink); max-width: 640px; }
+  .contact-value a { color: var(--amber-dark); text-decoration: none; border-bottom: 1px solid var(--amber-light); }
+  .contact-value a:hover { border-color: var(--amber-dark); }
+  .contact-email { font-family: var(--font-mono); font-size: 0.95rem; color: var(--amber-dark); letter-spacing: 0.04em; display: inline-block; margin-top: 8px; }
+  .contact-social { display: flex; flex-wrap: wrap; gap: 18px; }
+  .contact-social a { font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber-dark); text-decoration: none; border: 1px solid var(--rule); padding: 6px 14px; transition: background 0.2s, border-color 0.2s; }
+  .contact-social a:hover { background: var(--bg2); border-color: var(--amber-light); }
+
+  footer { position: relative; z-index: 1; padding: 36px 80px; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; background: var(--bg); }
+  footer .footer-logo { font-family: var(--font-display); font-size: 1rem; font-weight: 500; }
+  footer .footer-copy { font-family: var(--font-mono); font-size: 0.6rem; color: var(--ink-mid); letter-spacing: 0.08em; }
+
+  #tweaks-panel { display: none; position: fixed; bottom: 24px; left: 24px; z-index: 200; background: var(--bg); border: 1px solid var(--rule); padding: 20px 24px; width: 260px; box-shadow: 0 4px 32px oklch(0% 0 0 / 0.08); }
+  #tweaks-panel.visible { display: block; }
+  #tweaks-panel h4 { font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+  .tweak-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
+  .tweak-row label { font-family: var(--font-mono); font-size: 0.62rem; color: var(--ink-mid); flex-shrink: 0; }
+  .tweak-row input[type=range] { flex: 1; accent-color: var(--amber-dark); }
+  .tweak-row select { flex: 1; font-family: var(--font-mono); font-size: 0.6rem; background: var(--bg2); border: 1px solid var(--rule); color: var(--ink); padding: 4px 8px; }
+  .tweak-row input[type=color] { width: 32px; height: 24px; border: 1px solid var(--rule); padding: 0; }
+
+  @media (max-width: 900px) {
+    #stage { position: relative; width: 100vw; height: 70vh; }
+    #hero { padding: 88px 32px 0; height: auto; min-height: 100vh; flex-direction: column; align-items: flex-start; justify-content: center; }
+    .section { padding: 80px 32px; }
+    #legend { top: auto; bottom: 16px; right: 16px; transform: none; gap: 10px; }
+    #pi .pi-grid, #outreach .outreach-block { grid-template-columns: 1fr; }
+    #research .research-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo" onclick="scrollToSection('hero')">N-COL<span>Non-Conventional Optics for Life</span></div>
+  <ul class="nav-links">
+    <li><a onclick="scrollToSection('pi')">PI</a></li>
+    <li><a onclick="scrollToSection('team')">Team</a></li>
+    <li><a onclick="scrollToSection('research')">Research</a></li>
+    <li><a onclick="scrollToSection('publications')">Publications</a></li>
+    <li><a onclick="scrollToSection('outreach')">Outreach</a></li>
+    <li><a onclick="scrollToSection('contact')">Contact</a></li>
+  </ul>
+</nav>
+
+<div id="stage">
+  <canvas id="microscope-canvas"></canvas>
+  <div id="legend">
+    <div class="legend-item active" data-section="hero"         onclick="scrollToSection('hero')"><span class="legend-num">00</span><span class="legend-label">Overview</span><span class="legend-dot"></span></div>
+    <div class="legend-item"        data-section="pi"           onclick="scrollToSection('pi')"><span class="legend-num">01</span><span class="legend-label">PI</span><span class="legend-dot"></span></div>
+    <div class="legend-item"        data-section="team"         onclick="scrollToSection('team')"><span class="legend-num">02</span><span class="legend-label">Team</span><span class="legend-dot"></span></div>
+    <div class="legend-item"        data-section="research"     onclick="scrollToSection('research')"><span class="legend-num">03</span><span class="legend-label">Research</span><span class="legend-dot"></span></div>
+    <div class="legend-item"        data-section="publications" onclick="scrollToSection('publications')"><span class="legend-num">04</span><span class="legend-label">Publications</span><span class="legend-dot"></span></div>
+    <div class="legend-item"        data-section="outreach"     onclick="scrollToSection('outreach')"><span class="legend-num">05</span><span class="legend-label">Science Outreach</span><span class="legend-dot"></span></div>
+    <div class="legend-item"        data-section="contact"      onclick="scrollToSection('contact')"><span class="legend-num">06</span><span class="legend-label">Contact</span><span class="legend-dot"></span></div>
+  </div>
+  <div class="canvas-label" id="view-label">Fig. 01 — Isometric Overview</div>
+</div>
+
+<section id="hero">
+  <div class="hero-text">
+    <div class="hero-label">Institut Polytechnique de Paris</div>
+    <h1 class="hero-title">Non-Conventional<br><em>Optics</em> for Life</h1>
+    <div class="hero-acronym">— N · C · O · L —</div>
+    <p class="hero-desc">Pioneering advanced photonics probes for health and the environment.</p>
+    <div class="hero-affiliation"><div class="hero-affiliation-text">SAMOVAR<br>Telecom SudParis</div></div>
+  </div>
+  <div class="section-hint"><span>Scroll</span><svg width="12" height="18" viewBox="0 0 12 18" fill="none"><path d="M6 1v16M1 12l5 5 5-5" stroke="var(--amber)" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+</section>
+
+<section id="pi" class="section">
+  <div class="section-number">01 · Lab Head</div>
+  <h2 class="section-title">The <em>Principal</em><br>Investigator</h2>
+  <div class="pi-grid">
+    <div><div class="pi-portrait has-image"><img src="pi.jpg" alt="Prof. Guillaume Graciani"></div></div>
+    <div class="pi-info">
+      <h3>Prof. Guillaume Graciani</h3>
+      <div class="pi-title">Associate Professor · Institut Polytechnique de Paris</div>
+      <p>Engineer from the Institut d'Optique Graduate School, Guillaume got his PhD from Ecole Polytechnique. Working at the crossroads between fundamental optics and biology, he was amongst the 2021 recipients of Institut Polytechnique de Paris' « Best Thesis Award ».</p>
+      <p>He began his career in South Korea, where he developed new optical interferometry instruments for the study of proteins. As an Associate Professor at the Institut Polytechnique de Paris, he now combines Machine Learning, statistical optics, and computational physics to develop photonic probes for environmental, health, and biological applications.</p>
+      <p>Recent laureate of an international science communication competition organized by Nature and book author at Springer Nature, he actively works in science communication and the visual arts.</p>
+      <div class="pi-tags">
+        <span class="pi-tag">Light Scattering</span><span class="pi-tag">Interferometry</span><span class="pi-tag">Statistical Optics</span><span class="pi-tag">Super-Resolution Microscopy</span><span class="pi-tag">Heavy Metal</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="team" class="section">
+  <div class="section-number">02 · The Group</div>
+  <h2 class="section-title">Our <em>Team</em></h2>
+  <div class="team-grid">
+    <div class="team-card"><div class="team-card-photo"><img src="tye.jpg" alt="Caitlin Tye"></div><h4>Caitlin Tye</h4><div class="team-role">Postdoctoral Researcher</div><p class="team-bio">Experimental optics for the RIPPLE Pre-maturation project.</p></div>
+    <div class="team-card"><div class="team-card-photo"><img src="livet.jpeg" alt="Raphël Livet"></div><h4>Raphël Livet</h4><div class="team-role">PhD Student</div><p class="team-bio">Optics and Deep-Learning for lensless microscopy.</p></div>
+     <div class="team-card"><div class="team-card-photo"><img src="ataei.jpg" alt="Zavush Ataei"></div><h4>Zavush Ataei</h4><div class="team-role">Master's Student</div><p class="team-bio">Deep-Learning for computational microscopy.</p></div>
+    <div class="team-card"><div class="team-card-photo"><img src="juan.jpg" alt="Juan Diego"></div><h4>Juan Diego Zuniga Vargas</h4><div class="team-role">Master's Student</div><p class="team-bio">Optics for lensless microscopy. Passionate about birds and Japanese culture. Fan of Pokémon (and capybaras), and currently reading 1984.</p></div>
+    <div class="team-card"><div class="team-card-photo"><img src="Zige.jpeg" alt="Zige Huang"></div><h4>Zige Huang</h4><div class="team-role">Master's Student</div><p class="team-bio">Deep learning for FPM. Favourite language: Python. Favourite sound: electronic music, and the GPU finally starting training</p></div>
+  </div>
+  <h3 class="team-subhead"><em>Collaborators</em></h3>
+  <div class="team-grid">
+    <div class="team-card"><div class="team-card-photo"><img src="gottesman.jpg" alt="Yaneck Gottesman"></div><h4>Yaneck Gottesman</h4><div class="team-role">Head of the Physics Department</div></div>
+    <div class="team-card"><div class="team-card-photo"><img src="dorizzi.jpg" alt="Bernadette Dorizzi"></div><h4>Bernadette Dorizzi</h4><div class="team-role">Emeritus Professor</div></div>
+  </div>
+  <h3 class="team-subhead"><em>Alumni</em></h3>
+<div class="team-grid">
+  <div class="team-card">
+    <h4>Songhui "Eason" Wang</h4>
+    <div class="team-role">PhD Track · 2024–2026</div>
+  </div>
+    <div class="team-card">
+    <h4>Vasili Riabchenko</h4>
+    <div class="team-role">Master's Student · 2025</div>
+  </div>
+</div>
+</section>
+
+<section id="research" class="section">
+  <div class="section-number">03 · Scientific Focus</div>
+  <h2 class="section-title">Research Axes with a<br><em>Physics-Informed Deep Learning Backbone</em></h2>
+  <div class="research-grid">
+    <div class="research-card"><div class="research-card-tag">Axis 01</div><div class="research-card-num">01</div><h3>3D Stochastic<br><em>Interferometry and Multi-modal Sensing</em></h3><p>Compact and ultra-sensitive cavity enhanced photonic probe.</p></div>
+    <div class="research-card"><div class="research-card-tag">Axis 02</div><div class="research-card-num">02</div><h3>Lensless<br><em>Microscopy</em></h3><p>Large field-of-view and high-resolution computational imaging.</p></div>
+    <div class="research-card"><div class="research-card-tag">Axis 03</div><div class="research-card-num">03</div><h3>Fourier Ptychographic<br><em>Microscopy</em></h3><p>Computational imaging for the reconstruction of complex objects.</p></div>
+  </div>
+</section>
+
+<section id="publications" class="section">
+  <div class="section-number">04 · Scientific Output</div>
+  <h2 class="section-title">Selected <em>Publications</em></h2>
+  <div class="pub-list">
+    <div class="pub-item">
+      <div class="pub-info">
+        <h4>Effective Communication and Single-Molecule Research</h4>
+        <div class="pub-authors">Graciani G.</div>
+        <div class="pub-journal">Springer Nature</div>
+      </div>
+      <a href="https://doi.org/10.1007/978-3-032-10426-7" target="_blank" rel="noopener" class="pub-link">DOI →</a>
+    </div>
+    <div class="pub-item">
+      <div class="pub-info">
+        <h4>Theoretical predictions for ultrasensitive sensing in three-dimensional stochastic interferometry</h4>
+        <div class="pub-authors">Graciani G., Filoche M.</div>
+        <div class="pub-journal">Physical Review Research</div>
+      </div>
+      <a href="https://doi.org/10.1103/7fhh-zqcx" target="_blank" rel="noopener" class="pub-link">DOI →</a>
+    </div>
+    <div class="pub-item">
+      <div class="pub-info">
+        <h4>3D stochastic interferometer detects picometer deformations and minute dielectric fluctuations of its optical volume</h4>
+        <div class="pub-authors">Graciani G., Filoche M., Amblard F.</div>
+        <div class="pub-journal">Nature Communications Physics</div>
+      </div>
+      <a href="https://doi.org/10.1038/s42005-022-01016-9" target="_blank" rel="noopener" class="pub-link">DOI →</a>
+    </div>
+    <div class="pub-item">
+      <div class="pub-info">
+        <h4>Super-resolution provided by the arbitrarily strong superlinearity of the blackbody radiation</h4>
+        <div class="pub-authors">Graciani G., Amblard F.</div>
+        <div class="pub-journal">Nature Communications</div>
+      </div>
+      <a href="https://doi.org/10.1038/s41467-019-13780-4" target="_blank" rel="noopener" class="pub-link">DOI →</a>
+    </div>
+    <div class="pub-item">
+      <div class="pub-info">
+        <h4>Cavity Amplified Scattering Spectroscopy Reveals the Dynamics of Proteins and Nanoparticles in Quasi-transparent and Miniature Samples</h4>
+        <div class="pub-authors">Graciani G., King JT., Amblard F.</div>
+        <div class="pub-journal">ACS Nano</div>
+      </div>
+      <a href="https://doi.org/10.1021/acsnano.2c06471" target="_blank" rel="noopener" class="pub-link">DOI →</a>
+    </div>
+  </div>
+</section>
+
+<section id="outreach" class="section">
+  <div class="section-number">05 · Science Outreach</div>
+  <h2 class="section-title">Bridging the <em>Gap</em></h2>
+
+  <div class="outreach-block">
+    <div class="outreach-media">
+      <img src="book.jpg" alt="Effective Communication and Single-Molecule Research — book cover">
+    </div>
+    <div class="outreach-body">
+      <h3>Effective Communication &amp; <em>Single-Molecule Research</em></h3>
+      <p>This Brief explores the vital role of science communication in today's world while demystifying how research is actually conducted in modern labs today. Divided into two parts, it begins by highlighting the need for scientists to share their work with the public through accessible and nuanced communication. The first part of the book covers key concepts such as the democratization of science, the benefits of effective communication for scientists, and strategies for educators to engage diverse audiences. Readers will discover how digital amnesia affects science communication and how, rather than facts, it is the scientific method itself that needs to be taught.</p>
+      <p>The second part dives into the author's cutting-edge research, offering a behind-the-scenes look at the experimental setups and methodologies that drive scientific innovation at the frontiers of photonics and biology. From building setups with lasers and coding image processing algorithms to researching innovative drugs with machine learning, the author shares the actual process through which scientific discoveries are made in labs today.</p>
+      <p>Building on an award-winning 2024 Science in Shorts mediation content, this book is an essential resource for researchers, educators, and science communicators who seek to bridge the gap between the scientific community and the public. It is also invaluable for students and professionals in the fields of photonics and biology, providing a comprehensive understanding of the latest research techniques and their real-world applications.</p>
+      <a href="https://tidd.ly/3OirCCx" target="_blank" rel="noopener" class="outreach-link">Get the book →</a>
+    </div>
+  </div>
+
+  <div class="outreach-block">
+       <div class="outreach-media">
+      <img src="prism.jpeg" alt="Optical Prism from Bayeux's cathedral">
+    </div>
+    <div class="outreach-body">
+      <h3>Visual &amp; <em>Arts</em></h3>
+      <p>Optical designer for visual artists: feasibility study and design of optical systems for modern art projects.</p>
+      <p>Collaborated with visual artists Elliot Woods, Véronique Joumard, and Cécile Pitois.</p>
+    </div>
+  </div>
+  
+    <div class="outreach-block">
+    <div class="outreach-body">
+      <h3><em>Keynote</em> Series</h3>
+      <p><em>For general audiences:</em> Behind the scenes of modern science. A lecture series unpacking how research really works: how labs are funded, how peer review and publication actually
+	  functions, what scientific consensus means, and why the scientific method remains our most reliable tool for
+	  navigating an uncertain world. Designed to demystify science without dumbing it down.</p>
+      <p><em>For organizations:</em> Thinking like a scientist: making decisions under uncertainty. A keynote drawing on 
+	  probability paradoxes, quantum physics, and the long history of breakthrough experiments to show how science treats 
+	  uncertainty not as a problem to eliminate, but as raw material for discovery and innovation. Practical takeaways for leaders, 
+	  R&amp;D teams, and decision-makers facing complex strategic choices.</p>
+    </div>
+	
+	    <div class="outreach-block">
+    <div class="outreach-body">
+      <h3>Training for <em>researchers</em></h3>
+      <p>Why and how scientists should communicate their work. Based on my book, this training program helps researchers, 
+	  PhD students and postdocs articulate their work clearly across audiences, from peers to policymakers to the general public.
+	  We cover why scientific communication matters today more than ever, and the practical methods to do it well without 
+	  compromising rigor.</p>
+    </div>
+  </div>
+  
+  
+</section>
+
+<section id="contact" class="section">
+  <div class="section-number">06 · Get in Touch</div>
+  <h2 class="section-title"><em>Contact</em> Us</h2>
+  <div class="contact-grid">
+    <div class="contact-block">
+      <div class="contact-item">
+        <div class="contact-label">Address</div>
+        <div class="contact-value">Institut Polytechnique de Paris<br>19 place Marguerite Perey<br>91120 Palaiseau, France</div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-label">We Are Recruiting</div>
+        <div class="contact-value">
+          We are always looking for new team members and collaborators. Whether you are a student, post-doc, engineer, artist or just curious, try and reach out to Guillaume Graciani at:
+          <span class="contact-email">firstname.name@telecom-sudparis.eu</span>
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-label">Values</div>
+        <div class="contact-value">
+          We are committed to the inclusion of people from all backgrounds, regardless of origin, religion, sex, gender identity, sexual orientation, age, or disability.
+          <br><br>
+          We strive to offer all of our members an inclusive and supportive environment that prioritizes life/work balance, freedom, and collaboration.
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-label">Elsewhere</div>
+        <div class="contact-social">
+          <a href="http://www.linkedin.com/in/guillaumegraciani" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="https://bsky.app/profile/graciani.bsky.social" target="_blank" rel="noopener">Bluesky</a>
+          <a href="https://tidd.ly/3OirCCx" target="_blank" rel="noopener">Book</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">N-COL</div>
+  <div class="footer-copy">© 2026 Non-Conventional Optics for Life · Institut Polytechnique de Paris</div>
+</footer>
+
+<div id="tweaks-panel">
+  <h4>Tweaks</h4>
+  <div class="tweak-row"><label>Speed</label><input type="range" id="tweak-speed" min="0.1" max="3" step="0.1" value="1"></div>
+  <div class="tweak-row"><label>Line Colour</label><input type="color" id="tweak-color" value="#c8973d"></div>
+  <div class="tweak-row"><label>Line Style</label><select id="tweak-style"><option value="blueprint">Blueprint</option><option value="neon">Neon</option><option value="minimal">Minimal</option></select></div>
+</div>
+
+<script>
+// ── TWEAKS ──
+var TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "rotationSpeed": 1.0,
+  "lineColor": "#c8973d",
+  "lineStyle": "blueprint"
+}/*EDITMODE-END*/;
+var tweaks = Object.assign({}, TWEAK_DEFAULTS);
+
+window.addEventListener('message', function(e) {
+  if (!e.data) return;
+  if (e.data.type === '__activate_edit_mode') document.getElementById('tweaks-panel').classList.add('visible');
+  if (e.data.type === '__deactivate_edit_mode') document.getElementById('tweaks-panel').classList.remove('visible');
+});
+window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+
+document.getElementById('tweak-speed').addEventListener('input', function(e) {
+  tweaks.rotationSpeed = parseFloat(e.target.value);
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { rotationSpeed: tweaks.rotationSpeed } }, '*');
+});
+document.getElementById('tweak-color').addEventListener('input', function(e) {
+  tweaks.lineColor = e.target.value;
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { lineColor: tweaks.lineColor } }, '*');
+});
+document.getElementById('tweak-style').addEventListener('change', function(e) {
+  tweaks.lineStyle = e.target.value;
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { lineStyle: tweaks.lineStyle } }, '*');
+});
+
+// ── SCROLL & NAV ──
+function scrollToSection(id) {
+  var el = document.getElementById(id);
+  if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset, behavior: 'smooth' });
+}
+
+var sectionIds = ['hero','pi','team','research','publications','outreach','contact'];
+var curSection = 'hero';
+
+var viewLabels = {
+  hero:         'Fig. 01 — Isometric Overview',
+  pi:           'Fig. 02 — Eyepiece',
+  team:         'Fig. 03 — Arm & Body',
+  research:     'Fig. 04 — Objective Lens',
+  publications: 'Fig. 05 — Sample',
+  outreach:     'Fig. 06 — Illumination',
+  contact:      'Fig. 07 — Base & Foundation'
+};
+
+// Each section maps to a focus point on the microscope, plus rotX / zoom.
+// rotY is driven continuously by the idle rotation.
+var sectionCams = {
+  hero:         { rotX: 0.42, zoom: 1.0, focusX: 0.0,  focusY: 1.75, focusZ: 0 },
+  pi:           { rotX: 0.18, zoom: 1.9, focusX: 0.2,  focusY: 3.25, focusZ: 0.1 },
+  team:         { rotX: 0.38, zoom: 1.4, focusX: -0.3, focusY: 2.30, focusZ: 0 },
+  research:     { rotX: 0.55, zoom: 2.1, focusX: 0.2,  focusY: 1.55, focusZ: 0 },
+  publications: { rotX: 0.62, zoom: 2.3, focusX: 0.2,  focusY: 1.36, focusZ: 0 },
+  outreach:     { rotX: 0.52, zoom: 1.9, focusX: 0.2,  focusY: 0.85, focusZ: 0 },
+  contact:      { rotX: 0.45, zoom: 1.6, focusX: 0.1,  focusY: 0.20, focusZ: 0 }
+};
+
+// Each legend item points to a 3D anchor on the microscope (for leader lines).
+var legendAnchors = {
+  hero:         [0.2,  1.75, 0],
+  pi:           [0.2,  3.42, 0.18],   // eyepieces
+  team:         [-0.8, 2.30, 0],      // arm
+  research:     [0.2,  1.70, 0],      // objective turret
+  publications: [0.2,  1.36, 0],      // stage / slide
+  outreach:     [0.2,  0.85, 0],      // condenser / illumination
+  contact:      [0.0,  0.11, 0]       // base
+};
+
+var cam = { rotY: 0.6, rotX: 0.42, zoom: 1.0, focusX: 0, focusY: 1.75, focusZ: 0 };
+var goalCam = Object.assign({}, cam);
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function updateCameraFromScroll() {
+  var scrollY = window.pageYOffset;
+  var focusLine = scrollY + window.innerHeight * 0.4;
+
+  var tops = sectionIds.map(function(id) {
+    var el = document.getElementById(id);
+    return el ? el.getBoundingClientRect().top + window.pageYOffset : 0;
+  });
+
+  var curIdx = 0;
+  for (var i = sectionIds.length - 1; i >= 0; i--) {
+    if (focusLine >= tops[i]) { curIdx = i; break; }
+  }
+  var nextIdx = Math.min(curIdx + 1, sectionIds.length - 1);
+  var t = 0;
+  if (nextIdx > curIdx && tops[nextIdx] > tops[curIdx]) {
+    t = Math.min(1, Math.max(0, (focusLine - tops[curIdx]) / (tops[nextIdx] - tops[curIdx])));
+    t = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+  }
+
+  var a = sectionCams[sectionIds[curIdx]];
+  var b = sectionCams[sectionIds[nextIdx]];
+  goalCam.rotX   = lerp(a.rotX,   b.rotX,   t);
+  goalCam.zoom   = lerp(a.zoom,   b.zoom,   t);
+  goalCam.focusX = lerp(a.focusX, b.focusX, t);
+  goalCam.focusY = lerp(a.focusY, b.focusY, t);
+  goalCam.focusZ = lerp(a.focusZ, b.focusZ, t);
+
+  var activeId = sectionIds[t > 0.5 ? nextIdx : curIdx];
+  if (activeId !== curSection) {
+    curSection = activeId;
+    var vl = document.getElementById('view-label');
+    if (vl) vl.textContent = viewLabels[activeId] || '';
+    document.querySelectorAll('.legend-item').forEach(function(d) {
+      d.classList.toggle('active', d.dataset.section === activeId);
+    });
+    document.querySelectorAll('.nav-links a').forEach(function(a) {
+      a.classList.toggle('active', a.getAttribute('onclick') && a.getAttribute('onclick').indexOf("'" + activeId + "'") >= 0);
+    });
+  }
+}
+
+window.addEventListener('scroll', updateCameraFromScroll, { passive: true });
+window.addEventListener('resize', updateCameraFromScroll);
+
+// ── CANVAS 2D ISOMETRIC MICROSCOPE ──
+(function() {
+  var canvas = document.getElementById('microscope-canvas');
+  var ctx = canvas.getContext('2d');
+  var dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  function resize() {
+    var r = canvas.getBoundingClientRect();
+    var w = r.width, h = r.height;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  new ResizeObserver(resize).observe(canvas);
+  window.addEventListener('resize', resize);
+
+  function project(x, y, z) {
+    x -= cam.focusX; y -= cam.focusY; z -= cam.focusZ;
+    var cosY = Math.cos(cam.rotY), sinY = Math.sin(cam.rotY);
+    var x1 = x * cosY + z * sinY;
+    var z1 = -x * sinY + z * cosY;
+    var cosX = Math.cos(cam.rotX), sinX = Math.sin(cam.rotX);
+    var y1 = y * cosX - z1 * sinX;
+    var z2 = y * sinX + z1 * cosX;
+    var W = canvas.width / dpr, H = canvas.height / dpr;
+    var scale = Math.min(W, H) * 0.12 * cam.zoom;
+    var cx = W * 0.38, cy = H * 0.5;
+    return { x: cx + x1 * scale, y: cy - y1 * scale, z: z2 };
+  }
+
+  function getColors() {
+    if (tweaks.lineStyle === 'neon') return { main: '#00ffcc', faint: 'rgba(0,255,200,0.35)', dash: 'rgba(0,255,200,0.5)', dot: '#00ffcc' };
+    if (tweaks.lineStyle === 'minimal') return { main: '#888', faint: 'rgba(136,136,136,0.3)', dash: 'rgba(136,136,136,0.4)', dot: '#888' };
+    var c = tweaks.lineColor;
+    return { main: c, faint: c + '55', dash: c + '88', dot: c };
+  }
+
+  function moveTo3(x, y, z) { var p = project(x, y, z); ctx.moveTo(p.x, p.y); }
+  function lineTo3(x, y, z) { var p = project(x, y, z); ctx.lineTo(p.x, p.y); }
+
+  function box(cx, cy, cz, w, h, d) {
+    var x0=cx-w/2, x1=cx+w/2, y0=cy-h/2, y1=cy+h/2, z0=cz-d/2, z1=cz+d/2;
+    var verts = [
+      [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
+      [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]
+    ];
+    var edges = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    edges.forEach(function(e) {
+      ctx.beginPath();
+      var a=verts[e[0]], b=verts[e[1]];
+      moveTo3(a[0],a[1],a[2]); lineTo3(b[0],b[1],b[2]);
+      ctx.stroke();
+    });
+  }
+
+  function cylinder(cx, cy, cz, r, h, segs) {
+    segs = segs || 12;
+    var pts0 = [], pts1 = [];
+    for (var i=0; i<segs; i++) {
+      var a = (i/segs)*Math.PI*2;
+      pts0.push([cx + Math.cos(a)*r, cy - h/2, cz + Math.sin(a)*r]);
+      pts1.push([cx + Math.cos(a)*r, cy + h/2, cz + Math.sin(a)*r]);
+    }
+    ctx.beginPath();
+    pts0.forEach(function(p,i){ i===0 ? moveTo3(p[0],p[1],p[2]) : lineTo3(p[0],p[1],p[2]); });
+    ctx.closePath(); ctx.stroke();
+    ctx.beginPath();
+    pts1.forEach(function(p,i){ i===0 ? moveTo3(p[0],p[1],p[2]) : lineTo3(p[0],p[1],p[2]); });
+    ctx.closePath(); ctx.stroke();
+    for (var q=0; q<4; q++) {
+      var idx = Math.round(q * segs/4) % segs;
+      ctx.beginPath();
+      var a0=pts0[idx], a1=pts1[idx];
+      moveTo3(a0[0],a0[1],a0[2]); lineTo3(a1[0],a1[1],a1[2]);
+      ctx.stroke();
+    }
+  }
+
+  function ring(cx, cy, cz, r) {
+    var segs = 20;
+    ctx.beginPath();
+    for (var i=0; i<=segs; i++) {
+      var a = (i/segs)*Math.PI*2;
+      var px = cx + Math.cos(a)*r, pz = cz + Math.sin(a)*r;
+      i===0 ? moveTo3(px,cy,pz) : lineTo3(px,cy,pz);
+    }
+    ctx.stroke();
+  }
+
+  function dashedLine3(x0,y0,z0, x1,y1,z1) {
+    var p0=project(x0,y0,z0), p1=project(x1,y1,z1);
+    ctx.save();
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function dot3(x,y,z,r,col) {
+    var p=project(x,y,z);
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,r,0,Math.PI*2);
+    ctx.fillStyle=col; ctx.fill();
+  }
+
+  function drawMicroscope() {
+    var C = getColors();
+    ctx.strokeStyle = C.main;
+    ctx.lineWidth = 1.2;
+
+    // BASE
+    box(0, 0.11, 0, 3.2, 0.22, 2.2);
+
+    // FOCUS KNOBS
+    cylinder(1.65+0.14, 0.22, 0.3,  0.12, 0.28, 8);
+    cylinder(1.65+0.14, 0.22, -0.3, 0.12, 0.28, 8);
+
+    // ARM
+    box(-0.8, 1.62, 0, 0.36, 2.8, 0.36);
+
+    // BRIDGE
+    box(-0.1, 2.92, 0, 1.4, 0.18, 0.36);
+
+    // STAGE PLATE
+    box(0.2, 1.3, 0, 2.4, 0.1, 1.7);
+
+    // STAGE APERTURE
+    ctx.strokeStyle = C.faint;
+    ring(0.2, 1.36, 0, 0.25);
+
+    // SLIDE (dashed)
+    ctx.strokeStyle = C.dash;
+    ctx.setLineDash([5,4]);
+    box(0.2, 1.365, 0, 0.9, 0.03, 0.3);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = C.main;
+
+    // CONDENSER
+    cylinder(0.2, 0.97, 0, 0.2, 0.45, 10);
+    ring(0.2, 0.78, 0, 0.22);
+
+    // OBJECTIVE TURRET
+    cylinder(0.2, 1.7, 0, 0.38, 0.12, 12);
+
+    // THREE OBJECTIVES
+    [[0.58,0],[0.2,0.38],[-0.07,0.27]].forEach(function(o,i) {
+      var lens = [0.55, 0.45, 0.65][i];
+      var r0 = [0.07, 0.065, 0.09][i];
+      cylinder(o[0], 1.7 - lens/2 - 0.06, o[1], r0, lens, 8);
+    });
+
+    // BODY TUBE
+    cylinder(0.2, 2.55, 0, 0.18, 1.0, 10);
+
+    // BINOCULAR HEAD
+    box(0.2, 3.12, 0, 0.56, 0.22, 0.42);
+
+    // EYEPIECES
+    cylinder(0.02, 3.42, 0.18, 0.095, 0.48, 8);
+    cylinder(0.38, 3.42, 0.18, 0.095, 0.48, 8);
+
+    // LIGHT PATH (dashed)
+    ctx.strokeStyle = C.dash;
+    dashedLine3(0.2, 0.55, 0, 0.2, 1.27, 0);
+    dashedLine3(0.2, 1.38, 0, 0.2, 1.64, 0);
+    ctx.strokeStyle = C.main;
+
+    // ANCHOR DOTS
+    Object.keys(legendAnchors).forEach(function(k) {
+      var p = legendAnchors[k];
+      dot3(p[0], p[1], p[2], k === curSection ? 4 : 2.2, C.dot);
+    });
+  }
+
+  function drawLeaders() {
+    var C = getColors();
+    var stage = document.getElementById('stage').getBoundingClientRect();
+    var legendItems = document.querySelectorAll('.legend-item');
+    ctx.save();
+    legendItems.forEach(function(el) {
+      var key = el.dataset.section;
+      var anchor = legendAnchors[key];
+      if (!anchor) return;
+      var p = project(anchor[0], anchor[1], anchor[2]);
+      var rect = el.getBoundingClientRect();
+      var lx = rect.left - stage.left - 6;
+      var ly = rect.top  - stage.top  + rect.height / 2;
+
+      var isActive = (key === curSection);
+      ctx.strokeStyle = isActive ? C.main : C.faint;
+      ctx.lineWidth = isActive ? 1.1 : 0.7;
+      ctx.setLineDash(isActive ? [] : [3, 3]);
+
+      var bendX = lx - 18;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(bendX, p.y);
+      ctx.lineTo(bendX, ly);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
+
+      if (isActive) {
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+        ctx.strokeStyle = C.main;
+        ctx.stroke();
+      }
+    });
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  var autoAngle = 0.6;
+
+  function frame() {
+    requestAnimationFrame(frame);
+
+    autoAngle += 0.005 * tweaks.rotationSpeed;
+    cam.rotY = autoAngle;
+
+    cam.rotX   = lerp(cam.rotX,   goalCam.rotX,   0.06);
+    cam.zoom   = lerp(cam.zoom,   goalCam.zoom,   0.06);
+    cam.focusX = lerp(cam.focusX, goalCam.focusX, 0.06);
+    cam.focusY = lerp(cam.focusY, goalCam.focusY, 0.06);
+    cam.focusZ = lerp(cam.focusZ, goalCam.focusZ, 0.06);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawMicroscope();
+    drawLeaders();
+  }
+
+  frame();
+})();
+
+updateCameraFromScroll();
+</script>
+</body>
+</html>
